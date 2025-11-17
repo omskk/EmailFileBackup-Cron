@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>附件上传日志</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
+            margin: 0;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 2.5rem;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        h1 {
+            color: #2c3e50;
+            margin: 0;
+        }
+        .home-link {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .home-link:hover {
+            color: #2980b9;
+        }
+        .search-form {
+            margin-bottom: 2rem;
+            display: flex;
+        }
+        .search-form input[type="text"] {
+            flex-grow: 1;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 6px 0 0 6px;
+            font-size: 1rem;
+        }
+        .search-form button {
+            padding: 0.75rem 1.5rem;
+            border: 1px solid #3498db;
+            background-color: #3498db;
+            color: white;
+            border-radius: 0 6px 6px 0;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .search-form button:hover {
+            background-color: #2980b9;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+        }
+        th, td {
+            padding: 1rem 1.25rem;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        tbody tr:hover {
+            background-color: #f1f3f5;
+        }
+        .status-success {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+        .status-failed {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .no-logs {
+            text-align: center;
+            color: #7f8c8d;
+            padding: 3rem;
+            font-size: 1.1rem;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 2.5rem;
+        }
+        .pagination a, .pagination span {
+            color: #3498db;
+            padding: 0.75rem 1rem;
+            margin: 0 0.25rem;
+            text-decoration: none;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .pagination a:hover {
+            background-color: #3498db;
+            color: #fff;
+            border-color: #3498db;
+        }
+        .pagination .current {
+            background-color: #3498db;
+            color: #fff;
+            border-color: #3498db;
+            font-weight: bold;
+        }
+        .pagination .disabled {
+            color: #bdc3c7;
+            pointer-events: none;
+            border-color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>附件上传日志</h1>
+            <a href="/" class="home-link">返回首页</a>
+        </div>
+        
+        <form action="{{ url_for('view_logs') }}" method="get" class="search-form">
+            <input type="text" name="q" placeholder="按文件名搜索..." value="{{ search_query or '' }}">
+            <button type="submit">搜索</button>
+        </form>
+
+        {% if logs %}
+        <table>
+            <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>文件名</th>
+                    <th>大小</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ log.filename }}</td>
+                    <td>{{ log.size_readable }}</td>
+                    <td>
+                        {% if log.status == 'Success' %}
+                            <span class="status-success">成功</span>
+                        {% else %}
+                            <span class="status-failed">失败</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="pagination">
+            {% if page > 1 %}
+                <a href="{{ url_for('view_logs', page=page-1, q=search_query) }}">« 上一页</a>
+            {% else %}
+                <span class="disabled">« 上一页</span>
+            {% endif %}
+
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                    <span class="current">{{ p }}</span>
+                {% else %}
+                    <a href="{{ url_for('view_logs', page=p, q=search_query) }}">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if page < total_pages %}
+                <a href="{{ url_for('view_logs', page=page+1, q=search_query) }}">下一页 »</a>
+            {% else %}
+                <span class="disabled">下一页 »</span>
+            {% endif %}
+        </div>
+
+        {% else %}
+        <p class="no-logs">还没有任何日志记录。</p>
+        {% endif %}
+    </div>
+</body>
+</html>
