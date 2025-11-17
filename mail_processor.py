@@ -8,6 +8,7 @@ import logging
 import os
 from typing import Dict, Any
 from email.header import decode_header
+from urllib.parse import unquote
 
 import requests
 from imbox import Imbox
@@ -99,7 +100,7 @@ def upload_to_webdav_with_retry(config: Dict[str, Any], data: bytes, remote_file
             if attempt < upload_config['retry_count']:
                 logger.info(f"等待 {upload_config['retry_delay']} 秒后重试...")
                 time.sleep(upload_config['retry_delay'])
-    
+
     logger.error(f"❌ WebDAV 上传在 {upload_config['retry_count']} 次重试后仍然失败: '{remote_filename}'。")
     log_upload(remote_filename, file_size, "Failed")
     return False
@@ -111,16 +112,45 @@ def sanitize_filename(filename: str) -> str:
 
 
 def decode_email_header(header: str) -> str:
-    decoded_parts = []
-    for part, charset in decode_header(header):
-        try:
-            if isinstance(part, bytes):
-                decoded_parts.append(part.decode(charset or 'utf-8', errors='ignore'))
-            else:
-                decoded_parts.append(part)
-        except (UnicodeDecodeError, LookupError):
-            decoded_parts.append(part.decode('utf-8', errors='ignore') if isinstance(part, bytes) else part)
-    return "".join(decoded_parts)
+    """
+    Decodes an email header, with special handling for RFC 2231 format.
+    """
+    if header:
+        # Check for RFC 2231 format (e.g., utf-8''%E... or utf-8'en'%E...)
+        rfc2231_match = re.match(r"([^']*)'([^']*)'(.*)", header)
+        if rfc2231_match:
+            try:
+                charset, lang, encoded_text = rfc2231_match.groups()
+                # URL-decode the text using the specified charset
+                decoded_filename = unquote(encoded_text, encoding=charset)
+                logger.info(f"Successfully decoded RFC 2231 header to '{decoded_filename}'")
+                return decoded_filename
+            except Exception as e:
+                logger.warning(f"Failed to decode RFC 2231 header '{header}': {e}. Falling back.")
+                # Fallback to standard decoding if RFC 2231 parsing fails
+
+    # Fallback to standard RFC 2047 decoding for all other cases
+    try:
+        decoded_parts = []
+        # The header might be None, so we guard against it
+        for part, charset in decode_header(header or ""):
+            try:
+                if isinstance(part, bytes):
+                    # If charset is None, 'us-ascii' is the default, but utf-8 is a safer bet
+                    decoded_parts.append(part.decode(charset or 'utf-8', errors='ignore'))
+                else:
+                    decoded_parts.append(part)
+            except (UnicodeDecodeError, LookupError):
+                # If decoding fails, try with utf-8 as a last resort
+                decoded_parts.append(part.decode('utf-8', errors='ignore') if isinstance(part, bytes) else part)
+
+        # Guard against empty result, return original header if decode results in empty string
+        decoded_header = "".join(decoded_parts)
+        return decoded_header if decoded_header else header
+
+    except Exception as e:
+        logger.error(f"Generic failure in decoding header '{header}': {e}")
+        return header  # Return original header as a last resort
 
 
 def _process_single_message(imbox: Imbox, uid: bytes, message: Any, config: Dict[str, Any]) -> bool:
@@ -155,7 +185,7 @@ def process_emails() -> None:
     """
     logger.info("=" * 40)
     logger.info("开始执行邮件检查任务...")
-    
+
     config = load_config()
     if not validate_config(config):
         return
