@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import errno
+import hashlib
 import json
 import re
 import sys
@@ -18,7 +19,7 @@ from dotenv import load_dotenv
 # 在应用启动时加载 .env 文件
 load_dotenv()
 
-from database import log_upload
+from database import log_upload, acquire_lock, release_lock
 
 # 配置日志记录器 (现在只输出到控制台，文件日志由数据库替代)
 logging.basicConfig(
@@ -79,31 +80,27 @@ def validate_config(config: Dict[str, Any]) -> bool:
     return True
 
 
-def upload_to_webdav_with_retry(config: Dict[str, Any], data: bytes, remote_filename: str) -> bool:
+def upload_to_webdav(config: Dict[str, Any], data: bytes, remote_filename: str) -> bool:
+    """
+    将数据单次上传到 WebDAV 服务器。
+    如果上传失败，记录错误并返回 False。
+    """
     webdav_config = config['webdav']
-    upload_config = config['upload']
     full_url = f"{webdav_config['url'].rstrip('/')}/{remote_filename}"
     auth = (webdav_config['login'], webdav_config['password'])
     file_size = len(data)
 
-    for attempt in range(upload_config['retry_count'] + 1):
-        try:
-            action = "开始上传" if attempt == 0 else f"第 {attempt} 次重试上传"
-            logger.info(f"{action}附件到: {full_url}")
-            response = requests.put(full_url, data=data, auth=auth, timeout=30)
-            response.raise_for_status()
-            logger.info(f"✅ WebDAV 上传成功: '{remote_filename}'")
-            log_upload(remote_filename, file_size, "Success")
-            return True
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"WebDAV 上传失败: {e}。")
-            if attempt < upload_config['retry_count']:
-                logger.info(f"等待 {upload_config['retry_delay']} 秒后重试...")
-                time.sleep(upload_config['retry_delay'])
-
-    logger.error(f"❌ WebDAV 上传在 {upload_config['retry_count']} 次重试后仍然失败: '{remote_filename}'。")
-    log_upload(remote_filename, file_size, "Failed")
-    return False
+    try:
+        logger.info(f"开始上传附件到: {full_url}")
+        response = requests.put(full_url, data=data, auth=auth, timeout=30)
+        response.raise_for_status()
+        logger.info(f"✅ WebDAV 上传成功: '{remote_filename}'")
+        log_upload(remote_filename, file_size, "Success")
+        return True
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ WebDAV 上传失败: '{remote_filename}'。原因: {e}")
+        log_upload(remote_filename, file_size, "Failed")
+        return False
 
 
 def webdav_file_exists(webdav_config: Dict[str, Any], filename: str) -> bool:
@@ -142,68 +139,77 @@ def sanitize_filename(filename: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
 
-def decode_email_header(header: str) -> str:
+def decode_email_header(header: Any) -> str:
     """
-    Decodes an email header, with special handling for RFC 2231 format.
-    """
-    if header:
-        # Check for RFC 2231 format (e.g., utf-8''%E... or utf-8'en'%E...)
-        rfc2231_match = re.match(r"([^']*)'([^']*)'(.*)", header)
-        if rfc2231_match:
-            try:
-                charset, lang, encoded_text = rfc2231_match.groups()
-                # URL-decode the text using the specified charset
-                decoded_filename = unquote(encoded_text, encoding=charset)
-                logger.info(f"Successfully decoded RFC 2231 header to '{decoded_filename}'")
-                return decoded_filename
-            except Exception as e:
-                logger.warning(f"Failed to decode RFC 2231 header '{header}': {e}. Falling back.")
-                # Fallback to standard decoding if RFC 2231 parsing fails
+    解码邮件头信息，专门处理可能是特殊邮件库对象或编码错误的文件名。
 
-    # Fallback to standard RFC 2047 decoding for all other cases
+    该函数通过以下步骤处理邮件头：
+    1. 将输入转换为字符串格式
+    2. 移除特定的编码前缀
+    3. 尝试进行URL解码
+
+    参数:
+        header (Any): 需要解码的邮件头，可能是一个特殊对象或字符串
+
+    返回:
+        str: 解码后的文件名字符串
+
+    异常:
+        TypeError: 如果 header 无法被转换成字符串
+    """
+    # 确保我们使用的是普通字符串，处理那些在打印时和使用时行为不同的特殊对象
     try:
-        decoded_parts = []
-        # The header might be None, so we guard against it
-        for part, charset in decode_header(header or ""):
-            try:
-                if isinstance(part, bytes):
-                    # If charset is None, 'us-ascii' is the default, but utf-8 is a safer bet
-                    decoded_parts.append(part.decode(charset or 'utf-8', errors='ignore'))
-                else:
-                    decoded_parts.append(part)
-            except (UnicodeDecodeError, LookupError):
-                # If decoding fails, try with utf-8 as a last resort
-                decoded_parts.append(part.decode('utf-8', errors='ignore') if isinstance(part, bytes) else part)
-
-        # Guard against empty result, return original header if decode results in empty string
-        decoded_header = "".join(decoded_parts)
-        return decoded_header if decoded_header else header
-
+        filename_str = str(header)
     except Exception as e:
-        logger.error(f"Generic failure in decoding header '{header}': {e}")
-        return header  # Return original header as a last resort
+        logger.error("Failed to convert header to string", exc_info=True)
+        raise TypeError(f"Cannot convert header of type {type(header)} to string") from e
+
+    # 移除可能存在的编码前缀，这是最常见的问题
+    separator = "''"
+    if separator in filename_str:
+        # 只保留分隔符最后出现位置之后的部分
+        filename_str = filename_str.split(separator)[-1]
+
+    # 尝试对结果进行URL解码，因为它可能仍然被编码
+    try:
+        # unquote函数是安全的，如果没有编码内容则不会做任何处理
+        decoded_filename = unquote(filename_str)
+        return decoded_filename
+    except Exception:
+        logger.warning("Could not URL-decode input", extra={"input": filename_str}, exc_info=True)
+        # 如果解码失败，返回已清理的字符串
+        return filename_str
 
 
 def _process_single_message(imbox: Imbox, uid: bytes, message: Any, config: Dict[str, Any]) -> bool:
     uid_str = uid.decode()
 
-    if not message.attachments:
-        logger.warning(f"[UID: {uid_str}] 该邮件没有附件，跳过。")
+    attachments = message.attachments
+    attachment_count = len(attachments)
+    logger.info(f"[UID: {uid_str}] 邮件报告发现 {attachment_count} 个附件。")
+
+    if not attachments:
+        logger.warning(f"[UID: {uid_str}] 确认没有附件，跳过。")
         return True
 
     all_attachments_succeeded = True
-    for attachment in message.attachments:
+    for index, attachment in enumerate(attachments):
+        original_filename_raw = attachment.get('filename')
+        logger.info(
+            f"[UID: {uid_str}] 开始处理附件 {index + 1}/{attachment_count}，原始文件名: '{original_filename_raw}'")
+
         original_filename = "unknown_attachment"
         try:
-            original_filename = decode_email_header(attachment.get('filename'))
+            original_filename = decode_email_header(original_filename_raw)
             safe_filename = sanitize_filename(original_filename)
-            logger.info(f"[UID: {uid_str}] 发现附件: '{original_filename}' -> 清理后: '{safe_filename}'")
+            logger.info(f"[UID: {uid_str}] 解码和清理后文件名: '{safe_filename}'")
 
             # 查找唯一文件名以避免冲突
             final_filename = find_unique_filename(config, safe_filename)
 
             attachment_content = attachment.get('content').read()
-            if not upload_to_webdav_with_retry(config, attachment_content, final_filename):
+
+            if not upload_to_webdav(config, attachment_content, final_filename):
                 all_attachments_succeeded = False
                 logger.warning(f"[UID: {uid_str}] -> 附件 '{original_filename}' 上传失败，此邮件将不会被删除。")
                 break
@@ -218,17 +224,24 @@ def process_emails() -> None:
     """
     连接到 IMAP 服务器，获取并处理所有符合条件的邮件。
     """
+    LOCK_NAME = "process_emails_lock"
+
     logger.info("=" * 40)
     logger.info("开始执行邮件检查任务...")
 
-    config = load_config()
-    if not validate_config(config):
+    if not acquire_lock(LOCK_NAME):
+        logger.info("另一个邮件检查任务正在运行。跳过此次执行。")
+        logger.info("=" * 40)
         return
 
-    imap_config = config['imap']
-    search_subject = config['email']['search_subject']
-
     try:
+        config = load_config()
+        if not validate_config(config):
+            return
+
+        imap_config = config['imap']
+        search_subject = config['email']['search_subject']
+
         with Imbox(imap_config['hostname'],
                    username=imap_config['username'],
                    password=imap_config['password'],
@@ -262,5 +275,6 @@ def process_emails() -> None:
     except Exception as e:
         logger.error(f"❌ 发生未知错误: {e}", exc_info=True)
     finally:
+        release_lock(LOCK_NAME)
         logger.info("邮件检查任务执行完毕。")
         logger.info("=" * 40)
