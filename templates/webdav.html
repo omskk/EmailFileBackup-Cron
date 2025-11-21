@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Index of {{ display_path }}</title>
+    <style>
+        :root {
+            --bg-color: #fff;
+            --text-color: #212121;
+            --link-color: #1a0dab;
+            --hover-bg: #f5f5f5;
+            --border-color: #eee;
+            --header-color: #757575;
+            --input-bg: #f5f5f5;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #0d1117;
+                --text-color: #c9d1d9;
+                --link-color: #58a6ff;
+                --hover-bg: #161b22;
+                --border-color: #30363d;
+                --header-color: #8b949e;
+                --input-bg: #21262d;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        a {
+            text-decoration: none;
+            color: var(--link-color);
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 40px;
+        }
+
+        /* Header Area */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 0;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            font-size: 16px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            flex-grow: 1;
+        }
+
+        .breadcrumb a {
+            color: var(--text-color);
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .breadcrumb a:hover {
+            background-color: var(--hover-bg);
+            text-decoration: none;
+        }
+
+        .breadcrumb .separator {
+            margin: 0 4px;
+            color: var(--header-color);
+        }
+
+        /* Search Box */
+        .search-box {
+            position: relative;
+        }
+
+        .search-input {
+            background-color: var(--input-bg);
+            border: 1px solid transparent;
+            border-radius: 6px;
+            color: var(--text-color);
+            padding: 6px 12px;
+            font-size: 14px;
+            width: 200px;
+            outline: none;
+            transition: border-color 0.2s, width 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--link-color);
+            width: 250px;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        th {
+            color: var(--header-color);
+            font-weight: 600;
+            font-size: 13px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        tr:hover td {
+            background-color: var(--hover-bg);
+        }
+
+        /* Columns */
+        .col-icon {
+            width: 32px;
+            padding-right: 0;
+            text-align: center;
+        }
+
+        .col-name {
+            width: auto;
+        }
+
+        .col-size {
+            width: 100px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .col-mtime {
+            width: 160px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            color: var(--header-color);
+        }
+
+        .col-actions {
+            width: 60px;
+            text-align: center;
+        }
+
+        @media (max-width: 600px) {
+            .col-mtime {
+                display: none;
+            }
+
+            .col-size {
+                width: 80px;
+            }
+
+            .search-input {
+                width: 150px;
+            }
+
+            .search-input:focus {
+                width: 100%;
+            }
+        }
+
+        /* Icons */
+        svg {
+            fill: currentColor;
+            vertical-align: text-bottom;
+            width: 16px;
+            height: 16px;
+        }
+
+        .icon-folder {
+            color: #ffca28;
+        }
+
+        .icon-file {
+            color: var(--header-color);
+        }
+
+        .action-btn {
+            color: var(--text-color);
+            opacity: 0.6;
+            padding: 4px;
+        }
+
+        .action-btn:hover {
+            opacity: 1;
+            background-color: rgba(128, 128, 128, 0.1);
+            border-radius: 4px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .user-bar {
+            text-align: right;
+            padding: 0.5rem 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--header-color);
+            font-size: 13px;
+        }
+
+        .user-bar a {
+            color: var(--link-color);
+            text-decoration: none;
+            margin-left: 0.75rem;
+        }
+
+        .user-bar a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="user-bar">
+            当前用户: {{ session.username }}
+            <a href="{{ url_for('logout') }}">退出</a>
+        </div>
+
+        <div class="header">
+            <div class="breadcrumb">
+                <a href="/">← 返回首页</a>
+                {% if not is_root %}
+                <span class="separator">/</span>
+                <a href="{{ url_for('webdav_index') }}">文件服务器</a>
+                {% endif %}
+                {% if display_path != '/' %}
+                {% set parts = display_path.strip('/').split('/') %}
+                {% if parts %}
+                {% for part in parts %}
+                <span class="separator">/</span>
+                {% set subpath = parts[:loop.index]|join('/') %}
+                <a href="{{ url_for('webdav_index', subpath=subpath) }}">{{ part }}</a>
+                {% endfor %}
+                {% endif %}
+                {% endif %}
+            </div>
+            <div class="search-box">
+                <input type="text" id="search" class="search-input" placeholder="Search..." autocomplete="off">
+            </div>
+        </div>
+
+        <table id="file-table">
+            <thead>
+                <tr>
+                    <th class="col-icon"></th>
+                    <th class="col-name">Name</th>
+                    <th class="col-size">Size</th>
+                    <th class="col-mtime">Date</th>
+                    <th class="col-actions"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if parent_path is not none %}
+                <tr class="parent-dir">
+                    <td class="col-icon">
+                        <svg viewBox="0 0 16 16" class="icon-folder">
+                            <path
+                                d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3h-6.5a.25.25 0 01-.2-.1l-.9-1.2c-.33-.44-.85-.7-1.4-.7h-3.5z">
+                            </path>
+                        </svg>
+                    </td>
+                    {% if parent_path == '' %}
+                    <td class="col-name"><a href="{{ url_for('webdav_index') }}">....</a></td>
+                    {% else %}
+                    <td class="col-name"><a href="{{ url_for('webdav_index', subpath=parent_path) }}">..</a></td>
+                    {% endif %}
+                    <td class="col-size"></td>
+                    <td class="col-mtime"></td>
+                    <td class="col-actions"></td>
+                </tr>
+                {% endif %}
+
+                {% for item in files %}
+                <tr class="file-row">
+                    <td class="col-icon">
+                        {% if item.isdir %}
+                        {% if item.is_server_root %}
+                        <!-- Server Icon (Cloud) -->
+                        <svg viewBox="0 0 16 16" style="color: #0366d6;">
+                            <path
+                                d="M8.81 7.35v5.74c0 .04.01.11.02.13 0 0 0 .01 0 .01a2.25 2.25 0 01-.26 4.47H7.5a2.25 2.25 0 01-.26-4.47c.01 0 .01-.01.02-.01.01-.02.02-.09.02-.13V7.35a3.25 3.25 0 111.53 0zM9 6.08a1.75 1.75 0 10-2 0v.22a.25.25 0 00.25.25h1.5a.25.25 0 00.25-.25V6.08zM7.25 14.5c0-.14.11-.25.25-.25h1a.25.25 0 01.25.25c0 .14-.11.25-.25.25h-1a.25.25 0 01-.25-.25z">
+                            </path>
+                            <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 1.5a6.5 6.5 0 110 13 6.5 6.5 0 010-13z"></path>
+                        </svg>
+                        {% else %}
+                        <svg viewBox="0 0 16 16" class="icon-folder">
+                            <path
+                                d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3h-6.5a.25.25 0 01-.2-.1l-.9-1.2c-.33-.44-.85-.7-1.4-.7h-3.5z">
+                            </path>
+                        </svg>
+                        {% endif %}
+                        {% else %}
+                        <svg viewBox="0 0 16 16" class="icon-file">
+                            <path
+                                d="M3.75 1.5a.25.25 0 00-.25.25v11.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V6H9.75A1.75 1.75 0 018 4.25V1.5H3.75zm5.75.56v2.19c0 .138.112.25.25.25h2.19L9.5 2.06zM2 1.75C2 .784 2.784 0 3.75 0h5.086c.464 0 .909.184 1.237.513l3.414 3.414c.329.328.513.773.513 1.237v8.086A1.75 1.75 0 0112.25 15h-8.5A1.75 1.75 0 012 13.25V1.75z">
+                            </path>
+                        </svg>
+                        {% endif %}
+                    </td>
+                    <td class="col-name">
+                        <a href="{{ url_for('webdav_index', subpath=item.display_path) if item.isdir else url_for('webdav_download', subpath=item.display_path) }}"
+                            class="file-link" data-name="{{ item.name }}">
+                            {{ item.name }}
+                        </a>
+                    </td>
+                    <td class="col-size">{{ item.size_str }}</td>
+                    <td class="col-mtime">{{ item.mtime }}</td>
+                    <td class="col-actions">
+                        {% if not item.isdir %}
+                        <a href="{{ url_for('webdav_download', subpath=item.display_path) }}" class="action-btn"
+                            title="Download" download>
+                            <svg viewBox="0 0 16 16">
+                                <path
+                                    d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z">
+                                </path>
+                            </svg>
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script>
+        document.getElementById('search').addEventListener('input', function (e) {
+            const term = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('.file-row');
+
+            rows.forEach(row => {
+                const name = row.querySelector('.file-link').getAttribute('data-name').toLowerCase();
+                if (name.includes(term)) {
+                    row.classList.remove('hidden');
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

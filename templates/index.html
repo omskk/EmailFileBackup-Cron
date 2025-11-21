@@ -1,23 +1,127 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>邮件附件处理服务</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f4f4f4; }
-        .container { text-align: center; padding: 2em; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1 { color: #333; }
-        p { color: #666; }
-        a { color: #007bff; text-decoration: none; font-weight: bold; }
-        a:hover { text-decoration: underline; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2.5em;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .button-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .nav-button {
+            display: block;
+            padding: 15px 20px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #333;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .nav-button:hover {
+            background: #f8f8f8;
+            border-color: #007bff;
+        }
+
+        .nav-button-icon {
+            font-size: 18px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        .user-bar {
+            text-align: right;
+            padding: 0.5rem 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #e0e0e0;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .user-bar a {
+            color: #007bff;
+            text-decoration: none;
+            margin-left: 0.75rem;
+        }
+
+        .user-bar a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 2em;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
+        <div class="user-bar">
+            当前用户: {{ session.username }}
+            <a href="{{ url_for('logout') }}">退出</a>
+        </div>
+
         <h1>邮件附件处理服务</h1>
-        <p>这是一个后台服务，通过 API 触发邮件附件的自动处理。</p>
-        <p><a href="/logs">查看实时日志</a></p>
+        <p class="subtitle">这是一个后台服务,通过 API 触发邮件附件的自动处理。</p>
+
+        <div class="button-grid">
+            <a href="/logs" class="nav-button">
+                <span class="nav-button-icon">📋</span>查看邮件日志
+            </a>
+            <a href="/files" class="nav-button">
+                <span class="nav-button-icon">📁</span>WebDAV 文件浏览器
+            </a>
+            <a href="/servers" class="nav-button">
+                <span class="nav-button-icon">🖥️</span>服务器管理
+            </a>
+        </div>
     </div>
 </body>
+
 </html>
